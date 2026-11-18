@@ -1,0 +1,28 @@
+# Render Blueprint: one-click deploy of the STORYVERSE API + PostgreSQL.
+# https://render.com/deploy?repo=https://github.com/HadiaIshtiaqq/StoryVerse
+services:
+  - type: web
+    name: storyverse-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /docs
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: storyverse-db
+          property: connectionString
+
+databases:
+  - name: storyverse-db
+    plan: free
+    databaseName: storyverse
+    user: storyverse
