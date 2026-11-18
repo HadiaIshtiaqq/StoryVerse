@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240">
+<defs>
+<linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#fbe9ad"/><stop offset=".45" stop-color="#d6b066"/>
+  <stop offset=".7" stop-color="#a87b36"/><stop offset="1" stop-color="#6e4d1d"/></linearGradient>
+<linearGradient id="goldH" x1="0" y1="0" x2="1" y2="1">
+  <stop offset="0" stop-color="#fff2c2"/><stop offset=".5" stop-color="#c99a4a"/><stop offset="1" stop-color="#6e4d1d"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
+  <stop offset="0" stop-color="#e6e9ee"/><stop offset=".45" stop-color="#9aa1ab"/><stop offset="1" stop-color="#3d434c"/></linearGradient>
+
+  <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".3"/></linearGradient>
+  <clipPath id="sh"><path d="M 22 18 H 178 V 108 C 178 168 140 204 100 226 C 60 204 22 168 22 108 Z"/></clipPath>
+</defs>
+<path d="M 22 18 H 178 V 108 C 178 168 140 204 100 226 C 60 204 22 168 22 108 Z" fill="#8a2a30"/>
+<g clip-path="url(#sh)"><g fill="#141014" stroke="#000" stroke-width="1"><path d="M 70 150 C 60 128 72 104 96 100 C 106 98 112 90 112 80 C 118 70 132 66 140 72 L 152 70 L 142 80 C 138 84 130 84 126 88 C 124 104 120 118 110 128 C 128 132 140 146 136 164 C 132 178 116 184 104 176 C 116 176 124 168 120 156 C 116 144 100 142 90 152 C 84 158 80 168 84 180 C 70 176 66 160 70 150 Z"/><path d="M 96 104 C 80 82 52 70 32 76 C 46 82 50 92 44 100 C 56 98 62 106 58 114 C 70 110 78 116 78 124 Z"/><path d="M 108 102 C 124 78 150 60 170 62 C 158 72 158 82 166 88 C 152 90 150 100 156 106 C 142 104 134 112 132 120 Z"/></g><circle cx="134" cy="76" r="2.4" fill="#e8c35a"/><rect width="200" height="240" fill="url(#sheen)"/></g>
+<path d="M 22 18 H 178 V 108 C 178 168 140 204 100 226 C 60 204 22 168 22 108 Z" fill="none" stroke="#2a1a06" stroke-width="12"/>
+<path d="M 22 18 H 178 V 108 C 178 168 140 204 100 226 C 60 204 22 168 22 108 Z" fill="none" stroke="url(#gold)" stroke-width="8"/>
+</svg>

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Storyverse Court</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="sim.css?v=1795018552">
+</head>
+<body>
+  <div class="chamber-window l"></div><div class="chamber-window r"></div>
+  <div class="candle-glow l"></div><div class="candle-glow r"></div>
+  <header class="topbar">
+    <div class="brand">STORYVERSE <span>Rise of Kingdoms</span></div>
+    <div id="resbar" class="resbar"></div>
+    <div class="top-actions">
+      <div id="turnMedal" class="turn-medal hidden"></div>
+      <button id="advanceBtn" class="seal-btn hidden" title="End your turn (in a shared world: mark yourself ready)">END<br>TURN</button>
+      <button id="logoutBtn" class="ghost hidden">Leave court</button>
+    </div>
+  </header>
+
+  <!-- AUTH -->
+  <section id="authView" class="center-card ornate">
+    <h1>Enter the Realm</h1>
+    <p class="muted">Each browser tab is one ruler. Open four tabs to seat all four monarchs.</p>
+    <div id="authThrones" class="throne-grid"></div>
+    <button id="guestBtn" class="gold" style="width:100%;padding:13px;font-size:16px;margin-top:14px">Play now as a guest (no password needed)</button>
+    <p class="muted small" style="text-align:center;margin:12px 0 0">or use your own account. <b>First time? Type a name and a password, then press Register.</b></p>
+    <label>Username <input id="authUser" autocomplete="username" placeholder="e.g. aldric (3+ letters or numbers)" maxlength="40"></label>
+    <label>Password
+      <span class="pw"><input id="authPass" type="password" autocomplete="current-password" placeholder="at least 8 characters" maxlength="128">
+      <button type="button" id="pwToggle" class="ghost" title="Show or hide the password">Show</button></span></label>
+    <div id="authMsg" class="small" style="min-height:18px;color:#ef8a8a"></div>
+    <div class="row">
+      <button id="registerBtn" class="gold">Register (new ruler)</button>
+      <button id="loginBtn">Log in (returning ruler)</button>
+    </div>
+  </section>
+
+  <!-- WORLDS -->
+  <section id="worldsView" class="center-card ornate hidden">
+    <h1>Choose your Throne</h1>
+    <div class="row">
+      <input id="newWorldName" placeholder="New world name" value="The Continent">
+      <select id="newWorldPreset">
+        <option value="solo_court">Solo Court (you and three NPC rulers)</option>
+        <option value="standard">Standard (up to four human rulers)</option>
+      </select>
+      <button id="createWorldBtn" class="gold">Found a world</button>
+    </div>
+    <div id="worldList" class="list"></div>
+  </section>
+
+  <!-- GAME -->
+  <main id="gameView" class="game hidden">
+    <aside class="panel left ornate">
+      <div id="kingdomCard"></div>
+      <h3>Build</h3>
+      <div class="panes"><button data-pane="available" class="gold">Available</button><button data-pane="current">Your holdings</button></div>
+      <div id="catbar" class="catbar"></div>
+      <div id="catalog" class="catalog"></div>
+      <h3>Army</h3>
+      <div class="row"><input id="recruitCount" type="number" min="1" value="10"><button id="recruitBtn">Recruit soldiers</button></div>
+      <div id="myBuildings" class="list compact hidden"></div>
+    </aside>
+
+    <section class="map-wrap">
+      <canvas id="map" width="900" height="900" aria-label="Realm map"></canvas>
+      <div id="placeHint" class="place-hint hidden"></div>
+      <div id="hoverInfo" class="hoverinfo ornate hidden"></div>
+      <div id="decrees" class="decrees ornate hidden"></div>
+    </section>
+
+    <aside class="panel right ornate">
+      <nav class="tabs round" id="tabs">
+        <button data-tab="diplomacy" class="active" title="Courts"><img src="art/icons/ally.svg" alt=""><span class="lbl">Courts</span></button>
+        <button data-tab="inbox" title="Envoys"><img src="art/icons/letter.svg" alt=""><span class="lbl">Envoys</span> <span id="inboxBadge" class="badge hidden"></span></button>
+        <button data-tab="council" title="Council"><img src="art/icons/council.svg" alt=""><span class="lbl">Council</span></button>
+        <button data-tab="treasury" title="Treasury"><img src="art/icons/gold.svg" alt=""><span class="lbl">Treasury</span></button>
+        <button data-tab="letters" title="Letters"><img src="art/icons/decree.svg" alt=""><span class="lbl">Letters</span></button>
+        <button data-tab="chronicle" title="Chronicle"><img src="art/icons/turn.svg" alt=""><span class="lbl">Chronicle</span></button>
+        <button data-tab="leaders" title="Crowns"><img src="art/icons/prestige.svg" alt=""><span class="lbl">Crowns</span></button>
+      </nav>
+      <div id="tab-diplomacy" class="tab"></div>
+      <div id="tab-inbox" class="tab hidden"></div>
+      <div id="tab-treasury" class="tab hidden"></div>
+      <div id="tab-letters" class="tab hidden"></div>
+      <div id="tab-chronicle" class="tab hidden"></div>
+      <div id="tab-council" class="tab hidden"></div>
+      <div id="tab-leaders" class="tab hidden"></div>
+    </aside>
+  </main>
+
+  <div id="buildDetail" class="overlay hidden"></div>
+  <div id="negotiation" class="overlay hidden"></div>
+  <dialog id="actionDialog" class="ornate"><form method="dialog" id="actionForm"></form></dialog>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <script src="sim.js?v=1795018552"></script>
+</body>
+</html>

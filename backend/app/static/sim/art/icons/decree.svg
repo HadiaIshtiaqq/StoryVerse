@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs>
+<linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#fbe9ad"/><stop offset=".45" stop-color="#d6b066"/>
+  <stop offset=".7" stop-color="#a87b36"/><stop offset="1" stop-color="#6e4d1d"/></linearGradient>
+<linearGradient id="goldH" x1="0" y1="0" x2="1" y2="1">
+  <stop offset="0" stop-color="#fff2c2"/><stop offset=".5" stop-color="#c99a4a"/><stop offset="1" stop-color="#6e4d1d"/></linearGradient>
+<linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
+  <stop offset="0" stop-color="#e6e9ee"/><stop offset=".45" stop-color="#9aa1ab"/><stop offset="1" stop-color="#3d434c"/></linearGradient>
+</defs><style>
+  * { fill: url(#gold); stroke: #3a2608; stroke-width: 1.6; stroke-linejoin: round; }
+  .hi { fill: url(#goldH); }
+  .dark { fill: #3a2608; stroke: none; }
+  .line { fill: none; stroke: #3a2608; stroke-width: 2.6; stroke-linecap: round; }
+  .blade { fill: none; stroke: url(#steel); stroke-width: 6; stroke-linecap: round; }
+  .ring { fill: none; stroke: url(#gold); stroke-width: 7; }
+  .seal { fill: #9b2330; }
+  path[d^="M32 58 V20"], path[d^="M32 8 V54"], path[d^="M16 8 H48"] { fill: none; stroke: url(#gold); stroke-width: 4; }
+</style><rect x="12" y="8" width="40" height="48" rx="3"/><path d="M8 10 C8 4 18 4 18 10 V14 H8 Z M46 54 C46 60 56 60 56 54 V50 H46 Z" class="hi"/><path d="M20 20 H44 M20 28 H44 M20 36 H36" class="line"/><circle cx="40" cy="46" r="7" class="seal"/></svg>

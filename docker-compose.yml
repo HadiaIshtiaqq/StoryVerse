@@ -1,0 +1,28 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: storyverse
+      POSTGRES_PASSWORD: storyverse
+      POSTGRES_DB: storyverse
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U storyverse"]
+      interval: 3s
+      retries: 20
+
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://storyverse:storyverse@db:5432/storyverse
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-me}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
