@@ -147,6 +147,7 @@ namespace Storyverse.EditorTools
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
             PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel32;
+            PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevel34;   // Quest OS / Meta store level
             PlayerSettings.SetGraphicsAPIs(BuildTarget.Android, new[] { GraphicsDeviceType.Vulkan, GraphicsDeviceType.OpenGLES3 });
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android, false);
         }
@@ -443,6 +444,8 @@ namespace Storyverse.EditorTools
             Set(crownBoard, "leaderPortrait", Picture("LeaderPortrait", hall, new Vector3(0, 0.205f, -0.004f), 0.12f, ArtMaterial("medallions", "aurelia")));
 
             MakeDecreeBoard(mapRoot, m);
+            MakeMarketStall(mapRoot, m);
+            MakeUltimatumLectern(mapRoot, m, herald);
             var councilBoard = MakeCouncilBoard(mapRoot, m);
 
             // --- Rookery (letters) ---------------------------------------------------------------------------------
@@ -486,12 +489,13 @@ namespace Storyverse.EditorTools
 
         // ------------------------------------------------------------------ builds
         [MenuItem("Storyverse/3a. Build Windows Smoke Test")]
-        public static void BuildWindowsSmokeTest() => Build(BuildTarget.StandaloneWindows64, "Builds/Win/Storyverse.exe");
+        public static void BuildWindowsSmokeTest() => Build(BuildTarget.StandaloneWindows64, "Builds/Win/Storyverse.exe", BuildOptions.Development);
 
         [MenuItem("Storyverse/3b. Build Quest APK")]
-        public static void BuildQuestApk() => Build(BuildTarget.Android, "Builds/Quest/Storyverse.apk");
+        // Release build for the headset: no "Development Build" watermark, full IL2CPP optimisation.
+        public static void BuildQuestApk() => Build(BuildTarget.Android, "Builds/Quest/Storyverse.apk", BuildOptions.None);
 
-        static void Build(BuildTarget target, string output)
+        static void Build(BuildTarget target, string output, BuildOptions options)
         {
             // OpenXR copies this file into the output and errors if a previous build left it there.
             var stale = Path.Combine(Path.GetDirectoryName(output)!, "RuntimeActionBindings.json");
@@ -499,7 +503,7 @@ namespace Storyverse.EditorTools
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
                 scenes = new[] { ScenePath }, target = target, locationPathName = output,
-                options = BuildOptions.Development,
+                options = options,
             });
             var s = report.summary;
             Debug.Log($"[StoryverseSetup] Build {target}: {s.result}, {s.totalErrors} errors, {s.totalSize / (1024 * 1024)} MB -> {output}");
@@ -649,6 +653,82 @@ namespace Storyverse.EditorTools
             var label = Text("ClaimLabel", root, new Vector3(0, 0.03f, -0.07f), "", 0.07f, new Vector2(0.2f, 0.03f), Gold);
             var board = root.gameObject.AddComponent<DecreeBoard>();
             Set(board, "list", list); Set(board, "claimSeal", seal); Set(board, "claimLabel", label);
+        }
+
+        /// <summary>The Royal Market: a merchant's stall at the front-left corner. Pinch a crate to choose the goods,
+        /// palm-hold Buy or Sell to trade a lot with the crown's merchants (server-priced, per-turn capacity).</summary>
+        static void MakeMarketStall(Transform mapRoot, Mats m)
+        {
+            var root = new GameObject("MarketStall").transform;
+            root.SetParent(mapRoot, false); root.localPosition = new Vector3(-0.78f, 0, -0.80f);
+            root.localRotation = Quaternion.Euler(0, 25, 0);                         // angled toward the seated player
+            Prim(PrimitiveType.Cube, "Stand", root, new Vector3(0, 0.005f, 0), new Vector3(0.32f, 0.01f, 0.18f), m.Wood);
+            // The merchant's slate behind the crates: prices, capacity left this turn, what you hold.
+            var slate = new GameObject("Slate").transform; slate.SetParent(root, false);
+            slate.localPosition = new Vector3(0, 0.15f, 0.085f); slate.localRotation = Quaternion.Euler(-12, 0, 0);
+            Prim(PrimitiveType.Quad, "Board", slate, Vector3.zero, new Vector3(0.32f, 0.13f, 1), m.Midnight);
+            Prim(PrimitiveType.Cube, "Frame", slate, new Vector3(0, 0, 0.004f), new Vector3(0.335f, 0.145f, 0.006f), m.Gold);
+            foreach (var x in new[] { -0.15f, 0.15f })
+                Prim(PrimitiveType.Cylinder, "Post", root, new Vector3(x, 0.075f, 0.085f), new Vector3(0.01f, 0.075f, 0.01f), m.Wood);
+            var board = Text("Prices", slate, new Vector3(0, 0, -0.002f), "", 0.14f, new Vector2(0.30f, 0.115f), Parchment);
+            AutoSize(board, 0.06f, 0.14f);
+
+            string[] goods = { "food", "wood", "stone", "iron" };
+            var stall = root.gameObject.AddComponent<MarketStall>();
+            var crates = new SerializedObject(stall).FindProperty("crates");
+            crates.arraySize = goods.Length;
+            for (int i = 0; i < goods.Length; i++)
+            {
+                var x = -0.111f + i * 0.074f;
+                var crate = Prim(PrimitiveType.Cube, $"Crate_{goods[i]}", root, new Vector3(x, 0.035f, 0.03f), new Vector3(0.055f, 0.05f, 0.05f), m.Wood, keepCollider: true);
+                var target = crate.AddComponent<GazeTarget>();
+                Picture("Icon", root, new Vector3(x, 0.0605f, 0.03f), 0.045f, ArtMaterial("icons", goods[i]), flat: true, visible: true);
+                var marker = Prim(PrimitiveType.Cylinder, "Chosen", root, new Vector3(x, 0.011f, 0.03f), new Vector3(0.07f, 0.001f, 0.07f), m.Highlight);
+                marker.SetActive(false);
+                var tag = Text("Price", root, new Vector3(x, 0.011f, -0.007f), "", 0.06f, new Vector2(0.07f, 0.02f), Parchment, flat: true);
+                var e = crates.GetArrayElementAtIndex(i);
+                e.FindPropertyRelative("resource").stringValue = goods[i];
+                e.FindPropertyRelative("target").objectReferenceValue = target;
+                e.FindPropertyRelative("selectedMarker").objectReferenceValue = marker;
+                e.FindPropertyRelative("priceTag").objectReferenceValue = tag;
+            }
+            crates.serializedObject.ApplyModifiedPropertiesWithoutUndo();
+
+            var (buy, buyCrack, buyLabel) = MakeSeal(root, "BuySeal", "Buy", new Vector3(-0.07f, 0, -0.05f), m.Gold, m);
+            var (sell, sellCrack, sellLabel) = MakeSeal(root, "SellSeal", "Sell", new Vector3(0.07f, 0, -0.05f), m.Emerald, m);
+            Object.DestroyImmediate(buyCrack); Object.DestroyImmediate(sellCrack);
+            foreach (var l in new[] { buyLabel, sellLabel }) l.rectTransform.sizeDelta = new Vector2(0.13f, 0.045f);
+            Set(stall, "board", board); Set(stall, "buySeal", buy); Set(stall, "sellSeal", sell);
+            Set(stall, "buyLabel", buyLabel); Set(stall, "sellLabel", sellLabel); Set(stall, "coins", Audio(root.gameObject, "Coins"));
+        }
+
+        /// <summary>Ultimatums: a lectern at the front-right corner that rises only while a court demands tribute.
+        /// Shows the demand and the defence race; a crimson seal pays it (palm-hold). The Herald reads it aloud.</summary>
+        static void MakeUltimatumLectern(Transform mapRoot, Mats m, Herald herald)
+        {
+            var root = new GameObject("UltimatumLectern").transform;
+            root.SetParent(mapRoot, false); root.localPosition = new Vector3(0.78f, 0, -0.80f);
+            root.localRotation = Quaternion.Euler(0, -25, 0);
+            var visual = new GameObject("Lectern"); visual.transform.SetParent(root, false);
+            var v = visual.transform;
+            Prim(PrimitiveType.Cube, "Stand", v, new Vector3(0, 0.005f, 0), new Vector3(0.30f, 0.01f, 0.18f), m.Midnight);
+            Prim(PrimitiveType.Cube, "Trim", v, new Vector3(0, 0.011f, -0.088f), new Vector3(0.30f, 0.003f, 0.006f), m.Crimson);
+            var scroll = new GameObject("Scroll").transform; scroll.SetParent(v, false);
+            scroll.localPosition = new Vector3(0, 0.13f, 0.06f); scroll.localRotation = Quaternion.Euler(-15, 0, 0);
+            Prim(PrimitiveType.Quad, "Paper", scroll, Vector3.zero, new Vector3(0.26f, 0.19f, 1), m.Parchment);
+            Prim(PrimitiveType.Cylinder, "RodTop", scroll, new Vector3(0, 0.097f, 0.004f), new Vector3(0.012f, 0.145f, 0.012f), m.Crimson).transform.localRotation = Quaternion.Euler(0, 0, 90);
+            Prim(PrimitiveType.Cylinder, "RodBottom", scroll, new Vector3(0, -0.097f, 0.004f), new Vector3(0.012f, 0.145f, 0.012f), m.Crimson).transform.localRotation = Quaternion.Euler(0, 0, 90);
+            var text = Text("Demand", scroll, new Vector3(0, -0.005f, -0.002f), "", 0.16f, new Vector2(0.24f, 0.17f), Midnight);
+            AutoSize(text, 0.06f, 0.16f);
+            var portrait = Picture("Threatener", scroll, new Vector3(0, 0.15f, -0.004f), 0.09f, ArtMaterial("medallions", "drakoria"));
+            var (pay, crack, payLabel) = MakeSeal(v, "PaySeal", "Tribute", new Vector3(0, 0, -0.05f), m.Crimson, m);
+            Object.DestroyImmediate(crack);
+            payLabel.rectTransform.sizeDelta = new Vector2(0.14f, 0.03f);
+            var lectern = root.gameObject.AddComponent<UltimatumLectern>();
+            Set(lectern, "visual", visual); Set(lectern, "scroll", text); Set(lectern, "threatenerPortrait", portrait);
+            Set(lectern, "paySeal", pay); Set(lectern, "payLabel", payLabel); Set(lectern, "herald", herald);
+            Set(lectern, "drum", Audio(root.gameObject, "WarDrum"));
+            visual.SetActive(false);                                              // rises when a demand arrives
         }
 
         /// <summary>The Royal Council (picture 1): the most urgent adviser's portrait and counsel.</summary>

@@ -1,6 +1,6 @@
 // Headless end-to-end check, development builds only:  Storyverse.exe -batchmode -nographics -smoketest
 // Drives the real components (no gestures needed): enter the realm -> end turns -> an NPC court sends a proposal ->
-// the Envoy's Scroll accepts it -> resources move on the server. Prints [SmokeTest] PASS/FAIL lines and quits.
+// the Envoy's Scroll accepts it -> resources move on the server -> the market stall trades -> the ultimatum lectern is wired. Prints [SmokeTest] PASS/FAIL lines and quits.
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -41,7 +41,8 @@ namespace Storyverse.Dev
             if (tray == null) { Fail("Envoy's Scroll missing"); return; }
 
             var startTurn = km.Dashboard.World.Turn;
-            for (int i = 0; i < 4 && tray.PendingCount == 0; i++)
+            // Always end at least one turn: a resumed world may already have envoys waiting.
+            for (int i = 0; i < 4 && (i == 0 || tray.PendingCount == 0); i++)
             {
                 var r = await km.AdvanceTurn();
                 Check(r.Advanced, $"End Turn advanced to {r.Turn}");
@@ -57,6 +58,27 @@ namespace Storyverse.Dev
             var after = km.Dashboard.Inbox.Trades.Count + km.Dashboard.Inbox.Loans.Count + km.Dashboard.Inbox.Alliances.Count + km.Dashboard.Inbox.Peace.Count;
             Check(after == before - 1, $"accepted one proposal ({before} -> {after} waiting)");
             Pass($"gold {gold} -> {km.Dashboard.Kingdom.Resources.Gold} after accepting");
+
+            // Royal Market stall: a palm-hold buys a lot of wood, and the server's treasury moves.
+            var stall = FindFirstObjectByType<MarketStall>();
+            Check(stall != null, "Royal Market stall present");
+            var market = km.Dashboard.Market;
+            Check(market != null && km.Dashboard.Ultimatums != null, "dashboard carries the market and ultimatums");
+            if (stall != null && market != null && market.Open && market.UnitsLeft > 0)
+            {
+                var wood = km.Dashboard.Kingdom.Resources.Wood;
+                var bought = await stall.Trade("buy", "wood");
+                var now = km.Dashboard.Kingdom.Resources.Wood;
+                Check(bought != null && now == wood + bought.Amount, $"market bought {bought?.Amount} wood ({wood} -> {now})");
+            }
+            else Pass("market closed for this kingdom (it has no Market building)");
+
+            // Ultimatum lectern: always in the scene; it rises only while a court demands tribute.
+            var lectern = FindFirstObjectByType<UltimatumLectern>();
+            Check(lectern != null, "Ultimatum lectern present");
+            if (lectern != null)
+                Pass(lectern.Current != null ? $"ultimatum shown: {lectern.Current.From} demands {lectern.Current.Amount} by turn {lectern.Current.DeadlineTurn}"
+                                             : "no demand yet: the lectern stays hidden");
         }
 
         static async Task<bool> Until(Func<bool> condition, float seconds)

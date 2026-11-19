@@ -58,6 +58,31 @@ def recruit_for(db: Session, k: Kingdom, count: int) -> Kingdom:
     return k
 
 
+# --- defence -----------------------------------------------------------------------------------
+def defense_breakdown(db: Session, target: Kingdom, exclude_id: str | None = None):
+    """(expected defence power before the dice, helping allies, allied soldiers counted, watchtower levels)."""
+    helpers = []
+    for ally_id in queries.ally_ids(db, target.id):
+        alliance = queries.active_alliance(db, ally_id, target.id)
+        if ally_id != exclude_id and alliance and alliance.mutual_defense:
+            helpers.append(db.get(Kingdom, ally_id))
+    ally_soldiers = sum(h.soldiers for h in helpers) * ALLY_DEFENSE_SHARE
+    towers = queries.building_levels(db, target.id, "watchtower")
+    power = (target.soldiers + ally_soldiers) * (1 + WATCHTOWER_DEFENSE_PER_LEVEL * towers) + BASE_DEFENSE
+    return power, helpers, ally_soldiers, towers
+
+
+def attack_strength(db: Session, k: Kingdom) -> float:
+    """Power per committed soldier (barracks drill makes each soldier count for more)."""
+    return 1.0 + 0.1 * queries.building_levels(db, k.id, "barracks")
+
+
+def army_needed(db: Session, attacker: Kingdom, target: Kingdom, margin: float = 1.2) -> int:
+    """Soldiers an attacker must commit to beat the target's expected defence by `margin`."""
+    power, *_ = defense_breakdown(db, target, exclude_id=attacker.id)
+    return int(power * margin / attack_strength(db, attacker)) + 1
+
+
 # --- war ---------------------------------------------------------------------------------------
 def declare_war(db: Session, player: Player, kingdom_id: str, target_id: str) -> War:
     me = require_owned_kingdom(db, player, kingdom_id)
@@ -115,18 +140,11 @@ def battle_for(db: Session, me: Kingdom, target: Kingdom, soldiers: int) -> Batt
     me, target = ks[me.id], ks[target.id]
     rng = random.Random(f"{world.seed}:{world.turn}:{me.id}:{target.id}")
     supply = 1.0 if me.food >= soldiers else 0.8
-    strength = 1.0 + 0.1 * queries.building_levels(db, me.id, "barracks")
+    strength = attack_strength(db, me)
     attacker_power = soldiers * strength * supply * rng.uniform(0.85, 1.15)
 
-    helpers = []
-    for ally_id in queries.ally_ids(db, target.id):
-        alliance = queries.active_alliance(db, ally_id, target.id)
-        if ally_id != me.id and alliance and alliance.mutual_defense:
-            helpers.append(db.get(Kingdom, ally_id))
-    ally_soldiers = sum(h.soldiers for h in helpers) * ALLY_DEFENSE_SHARE
-    towers = queries.building_levels(db, target.id, "watchtower")
-    defender_power = ((target.soldiers + ally_soldiers) * (1 + WATCHTOWER_DEFENSE_PER_LEVEL * towers) + BASE_DEFENSE) \
-        * rng.uniform(0.85, 1.15)
+    expected_defense, helpers, ally_soldiers, towers = defense_breakdown(db, target, exclude_id=me.id)
+    defender_power = expected_defense * rng.uniform(0.85, 1.15)
 
     won = attacker_power > defender_power
     attacker_losses = min(soldiers, round(soldiers * (0.2 if won else 0.4)))

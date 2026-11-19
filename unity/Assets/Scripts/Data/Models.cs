@@ -125,7 +125,7 @@ namespace Storyverse.Data
         public Dictionary<string, int> Breakdown; public List<string> Crowns;
     }
 
-    [Serializable] public class WorldInfo { public string Id, Name, Preset; public int Turn, BeginnerProtectionTurns; }
+    [Serializable] public class WorldInfo { public string Id, Name, Preset, Status; public int Turn, BeginnerProtectionTurns, TurnLimit; }
     /// <summary>POST /worlds/{id}/turn. In a shared world Advanced is false until every human ruler is ready.</summary>
     [Serializable] public class TurnResult { public string WorldId; public int Turn; public bool Advanced; public List<string> WaitingFor; }
 
@@ -140,6 +140,21 @@ namespace Storyverse.Data
         public List<RelationData> Relations; public Inbox Inbox; public List<TradeData> OutgoingTrades;
         public List<LoanData> Loans; public List<NotificationData> Notifications; public List<LeaderboardRow> Leaderboard;
         public List<DecreeData> Decrees; public List<AdviserData> Council;
+        public MarketView Market; public List<UltimatumData> Ultimatums;   // Royal Market; open tribute demands
+    }
+
+    /// <summary>The Royal Market: gold per unit to buy from / sell to the crown, and this turn's remaining capacity.</summary>
+    [Serializable] public class MarketPrice { public int Buy, Sell; }
+    [Serializable] public class MarketView { public bool Open; public Dictionary<string, MarketPrice> Prices; public int UnitsPerTurn, UnitsLeft; }
+    [Serializable] public class MarketResult { public string Resource, Side; public int Amount, Gold, Price, UnitsLeft; }
+
+    /// <summary>An open demand for tribute. Safe = your defence at the deadline is too strong for them to attack.</summary>
+    [Serializable]
+    public class UltimatumData
+    {
+        public string FromId, From, Ruler;
+        public int Amount, Paid, Owed, DeadlineTurn, TurnsLeft, TheirArmy, YourDefense, DefenseNeeded;
+        public bool Safe;
     }
 
     /// <summary>A Royal Decree (objective). Complete ones can be claimed for their reward.</summary>

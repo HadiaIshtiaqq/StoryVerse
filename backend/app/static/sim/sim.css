@@ -314,3 +314,68 @@ dialog h2 { font-family: Cinzel, serif; }
 .pw { display: flex; gap: 6px; margin-top: 4px; }
 .pw input { margin-top: 0 !important; flex: 1; }
 .pw button { padding: 6px 12px; }
+
+/* ================================================================ game flow: reign progress, turn report, coronation, guide */
+.turn-medal b small { font-size: 12px; color: var(--muted); }
+.turn-medal .reign { width: 110px; height: 4px; margin: 4px auto; background: #000; border-radius: 2px; overflow: hidden; }
+.turn-medal .reign i { display: block; height: 100%; background: linear-gradient(90deg, #8a6328, #f3d891); }
+.turn-medal.final span:first-child { color: #ef8a8a; animation: flicker 1.2s infinite alternate; }
+.report { width: min(760px, 94vw); padding: 24px 28px 20px; }
+.report h2 { text-align: center; color: var(--gold-hi); margin: 2px 0 14px; }
+.report h2 .warn { display: block; font-size: 14px; color: #ef8a8a; margin-top: 4px; }
+.report .ledger { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.report .ledger div { text-align: center; padding: 8px 4px; border: 1px solid var(--line); border-radius: 6px; background: #120d08; font: 700 14px Cinzel, serif; }
+.report .ledger img { width: 28px; display: block; margin: 0 auto 2px; }
+.report .ledger span { display: block; font-size: 12px; }
+.report .news .chron { margin-bottom: 6px; }
+.report-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.report-actions button { padding: 10px 18px; font-size: 13px; }
+.coronation img.med.big { display: block; width: 170px; margin: 4px auto 8px; filter: drop-shadow(0 0 22px #f3d89199); }
+.coronation .verdict { text-align: center; font-size: 18px; }
+.coronation .final { display: grid; gap: 6px; max-width: 420px; margin: 10px auto 0; }
+.coronation .final div { display: grid; grid-template-columns: 28px 40px 1fr auto; gap: 10px; align-items: center; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; }
+.coronation .final div.me { border-color: var(--gold); box-shadow: 0 0 12px #f3d89155; }
+.coronation .final img { width: 40px; } .coronation .final .rank { font: 700 18px Cinzel, serif; color: var(--gold); }
+.guide { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: min(560px, 90%); z-index: 4;
+  display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; font-size: 14px; }
+.guide img { width: 32px; } .guide b { font-family: Cinzel, serif; color: var(--gold); font-size: 12px; }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 #f3d891aa; } 50% { box-shadow: 0 0 0 7px #f3d89100, 0 0 18px #f3d891; } }
+.pulse { animation: pulse 1.4s infinite; position: relative; z-index: 2; }
+
+/* the turn report / coronation already says everything the toasts would: keep them out of the way */
+body:has(#turnReport:not(.hidden)) .toasts { display: none; }
+
+/* ---- goal: where you stand in the race for the High Crown ---- */
+.goal-card { margin-top: 12px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 6px;
+  background: linear-gradient(#2a2015, #17120c); font-size: 13px; line-height: 1.35; }
+.goal-card .rank { font: 700 15px Cinzel, serif; color: var(--gold-hi); }
+.goal-card .bar { height: 6px; background: #000; border-radius: 3px; margin: 6px 0 2px; overflow: hidden; }
+.goal-card .bar i { display: block; height: 100%; background: linear-gradient(90deg, #8a6328, #f3d891); }
+
+/* ---- Royal Market ---- */
+.market .row { gap: 6px; }
+.market select, .market input { min-width: 0; }
+.market .prices { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 6px 0; text-align: center; font-size: 11px; }
+.market .prices img { width: 20px; display: block; margin: 0 auto 1px; }
+.market .closed { padding: 8px; text-align: center; }
+
+/* ---- the ultimatum banner over the map ---- */
+.threat { position: absolute; top: 76px; right: 10px; width: 320px; padding: 12px 14px; z-index: 4;
+  border-color: #d06a72 !important; box-shadow: 0 0 22px #b54a5288; }
+.threat h4 { margin: 0 0 4px; font: 700 14px Cinzel, serif; color: #f2a0a6; }
+.threat h4 img { width: 22px; height: 22px; vertical-align: -5px; margin-right: 4px; }
+.threat .meter { display: flex; justify-content: space-between; font-size: 12px; margin: 6px 0; }
+.threat .actions { display: flex; gap: 6px; margin-top: 8px; }
+.threat .actions button { flex: 1; }
+
+/* ---- How to win ---- */
+.info { width: min(620px, 94vw); padding: 26px 28px 20px; position: relative; }
+.info h2 { margin: 0 0 4px; color: var(--gold-hi); text-align: center; }
+.info .lead { text-align: center; color: var(--muted); font-style: italic; margin: 0 0 14px; }
+.info ol, .info ul { padding-left: 20px; margin: 8px 0; } .info li { margin: 5px 0; }
+.info .cats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; font-size: 13px; margin: 8px 0; }
+.info .cats b { color: var(--parchment); font-family: Cinzel, serif; }
+.info .go { text-align: center; margin-top: 16px; } .info .go button { padding: 10px 34px; font-size: 15px; }
+@media (max-width: 640px) { .info .cats { grid-template-columns: 1fr; } }
+.prestige-help { font-size: 12px; margin-top: 8px; }
+.prestige-help li { margin: 3px 0; }

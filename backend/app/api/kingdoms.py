@@ -7,7 +7,8 @@ from app.database import get_db
 from app.models import Alliance, Kingdom, LedgerEntry, Loan, Notification, Player, StoryEvent, TradeOffer, Transaction, War
 from app.schemas import DecreeClaimIn
 from app.security import get_current_player
-from app.services import court_service, diplomacy_service, economy_service, kingdom_service, prestige_service, story_service
+from app.services import (court_service, diplomacy_service, economy_service, kingdom_service, prestige_service, story_service,
+                          ultimatum_service)
 from app.services.common import get_kingdom, get_world, require_owned_kingdom, resources_of
 from app.services.military_service import serialize_war
 from app.services import turn_service
@@ -132,6 +133,8 @@ def dashboard(kingdom_id: str, player: Player = Depends(get_current_player), db:
         "leaderboard": prestige_service.leaderboard(db, world),
         "decrees": court_service.decrees(db, k),
         "council": court_service.council(db, k),
+        "market": economy_service.market_view(db, k),
+        "ultimatums": ultimatum_service.demands_for(db, k),
     }
 
 

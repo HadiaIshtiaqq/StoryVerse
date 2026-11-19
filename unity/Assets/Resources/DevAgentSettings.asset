@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: DevAgentSettings
   m_EditorClassIdentifier: 
   enabled: 0
-  serverAddress: 192.168.100.175
+  serverAddress: 192.168.100.176
   serverPort: 48735
   useVoiceSdkForInput: 0
   witConfiguration: {fileID: 0}

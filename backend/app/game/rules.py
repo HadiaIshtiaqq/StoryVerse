@@ -20,7 +20,7 @@ MAX_BUILD_RADIUS = 0.22      # buildings must be within this distance of the kin
 BUILDINGS: dict[str, dict] = {
     "farm":        {"label": "Farm",        "cost": {"wood": 100},                "production": {"food": 40},               "maintenance": {"gold": 2},  "function": "Produces food"},
     "lumber_mill": {"label": "Lumber Mill", "cost": {"wood": 120},                "production": {"wood": 35},               "maintenance": {"gold": 2},  "function": "Produces wood"},
-    "mine":        {"label": "Mine",        "cost": {"wood": 100, "gold": 50},    "production": {"stone": 20, "iron": 15},  "maintenance": {"gold": 4},  "function": "Produces stone and iron"},
+    "mine":        {"label": "Mine",        "cost": {"wood": 100, "gold": 50},    "production": {"stone": 30, "iron": 15},  "maintenance": {"gold": 4},  "function": "Produces stone and iron"},
     "gold_mine":   {"label": "Gold Mine",   "cost": {"wood": 200, "stone": 100},  "production": {"gold": 60},               "maintenance": {"food": 5},  "function": "Produces gold"},
     "market":      {"label": "Market",      "cost": {"wood": 150, "stone": 100},  "production": {"gold": 15},               "maintenance": {},           "function": "Enables trade"},
     "bank":        {"label": "Bank",        "cost": {"wood": 250, "stone": 200},  "production": {"gold": 10},               "maintenance": {"gold": 3},  "function": "Enables lending"},
@@ -84,7 +84,7 @@ DECREES_SHOWN = 3   # like a quest log: the next three open decrees
 # trading with other courts stays the better deal. Each market level lets you move this many units a turn.
 MARKET_BUY_MARKUP = 2.0             # buy price = BASE_PRICES x markup (wood costs 4 gold)
 MARKET_SELL_RATE = 0.5              # sell price = BASE_PRICES x rate (wood sells for 1 gold)
-MARKET_UNITS_PER_LEVEL = 150        # units bought + sold per turn, per market level
+MARKET_UNITS_PER_LEVEL = 200        # units bought + sold per turn, per market level
 
 # --- Ultimatums: Drakoria demands tribute from weaker human rulers -------------------------
 ULTIMATUM_FIRST_TURN = 4            # no threats before this turn

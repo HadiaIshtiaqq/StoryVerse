@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Storyverse Court</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="sim.css?v=1795018552">
+  <!-- Fonts load without blocking the page: it appears at once in Georgia, then swaps to Cinzel / EB Garamond. -->
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap"
+        rel="stylesheet" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="sim.css?v=1795110000">
 </head>
 <body>
   <div class="chamber-window l"></div><div class="chamber-window r"></div>
@@ -17,6 +19,7 @@
     <div class="top-actions">
       <div id="turnMedal" class="turn-medal hidden"></div>
       <button id="advanceBtn" class="seal-btn hidden" title="End your turn (in a shared world: mark yourself ready)">END<br>TURN</button>
+      <button id="helpBtn" class="ghost hidden" title="How to win">? How to win</button>
       <button id="logoutBtn" class="ghost hidden">Leave court</button>
     </div>
   </header>
@@ -42,6 +45,8 @@
   <!-- WORLDS -->
   <section id="worldsView" class="center-card ornate hidden">
     <h1>Choose your Throne</h1>
+    <button id="quickBtn" class="gold" style="width:100%;padding:13px;font-size:16px;margin:6px 0 14px">Quick start: a new Solo Court (you and three NPC rulers, 20 turns)</button>
+    <p class="muted small" style="margin:0 0 6px">Or found a world by hand:</p>
     <div class="row">
       <input id="newWorldName" placeholder="New world name" value="The Continent">
       <select id="newWorldPreset">
@@ -57,20 +62,26 @@
   <main id="gameView" class="game hidden">
     <aside class="panel left ornate">
       <div id="kingdomCard"></div>
+      <div id="goalCard" class="goal-card"></div>
       <h3>Build</h3>
       <div class="panes"><button data-pane="available" class="gold">Available</button><button data-pane="current">Your holdings</button></div>
       <div id="catbar" class="catbar"></div>
       <div id="catalog" class="catalog"></div>
       <h3>Army</h3>
       <div class="row"><input id="recruitCount" type="number" min="1" value="10"><button id="recruitBtn">Recruit soldiers</button></div>
+      <div id="armyNote" class="muted small" style="margin-top:6px"></div>
       <div id="myBuildings" class="list compact hidden"></div>
+      <h3>Royal Market</h3>
+      <div id="market"></div>
     </aside>
 
     <section class="map-wrap">
       <canvas id="map" width="900" height="900" aria-label="Realm map"></canvas>
       <div id="placeHint" class="place-hint hidden"></div>
+      <div id="guide" class="guide ornate hidden"></div>
       <div id="hoverInfo" class="hoverinfo ornate hidden"></div>
       <div id="decrees" class="decrees ornate hidden"></div>
+      <div id="threat" class="threat ornate hidden"></div>
     </section>
 
     <aside class="panel right ornate">
@@ -95,8 +106,10 @@
 
   <div id="buildDetail" class="overlay hidden"></div>
   <div id="negotiation" class="overlay hidden"></div>
+  <div id="infoOverlay" class="overlay hidden"></div>
+  <div id="turnReport" class="overlay hidden"></div>
   <dialog id="actionDialog" class="ornate"><form method="dialog" id="actionForm"></form></dialog>
   <div id="toasts" class="toasts" aria-live="polite"></div>
-  <script src="sim.js?v=1795018552"></script>
+  <script src="sim.js?v=1795110000"></script>
 </body>
 </html>

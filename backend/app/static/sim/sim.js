@@ -10,6 +10,7 @@ const S = {
   kingdomId: sessionStorage.getItem("sv_kingdom"),
   dash: null, map: null, catalog: [], selected: null, ws: null, refreshTimer: null, tab: "diplomacy",
   cat: "all", pane: "available", negotiating: null,
+  mkt: { res: "wood", amt: 100 },   // Royal Market form: chosen resource and amount
 };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -63,6 +64,7 @@ const fail = (e) => toast(esc(e.message), true);
 function show(view) {
   for (const v of ["authView", "worldsView", "gameView"]) $(v).classList.toggle("hidden", v !== view);
   $("logoutBtn").classList.toggle("hidden", view === "authView");
+  $("helpBtn").classList.toggle("hidden", view !== "gameView");
   $("advanceBtn").classList.toggle("hidden", view !== "gameView");
   $("turnMedal").classList.toggle("hidden", view !== "gameView");
   if (view !== "gameView") $("resbar").innerHTML = "";
@@ -110,22 +112,35 @@ async function guest() {
 async function startSession(token) {
   S.token = token;
   sessionStorage.setItem("sv_token", token);
-  try { await loadWorlds(); } catch (e) { fail(e); }
+  try { await loadWorlds(true); } catch (e) { fail(e); }
+}
+
+/** One click: a fresh Solo Court (you and three NPC rulers); then pick your throne. */
+async function quickStart() {
+  try {
+    const stamp = new Date().toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    await api("POST", "/worlds", { name: `The Continent (${stamp})`, preset: "solo_court" });
+    await loadWorlds(false);
+    toast("A new realm awaits. Choose your throne: each kingdom plays differently.");
+  } catch (e) { fail(e); }
 }
 
 function logout() {
   sessionStorage.clear();
   Object.assign(S, { token: null, worldId: null, kingdomId: null });
   if (S.ws) S.ws.close();
-  $("worldInfo").textContent = "";
+  S.dash = null; S.catalog = [];
   show("authView");
 }
 
-async function loadWorlds() {
-  show("worldsView");
+async function loadWorlds(autoEnter = false) {
   const worlds = await api("GET", "/worlds");
+  // Returning ruler with exactly one living reign: skip the menus and walk straight into the court.
+  const mine = worlds.filter((w) => w.my_kingdom_id && w.status !== "ENDED");
+  if (autoEnter && mine.length === 1) return enterGame(mine[0].id, mine[0].my_kingdom_id);
+  show("worldsView");
   $("worldList").innerHTML = worlds.length ? worlds.map((w) => `
-    <div class="item"><div class="title">${esc(w.name)} <span class="muted small">· ${esc(w.preset.replace("_", " "))} · turn ${w.turn}</span></div>
+    <div class="item"><div class="title">${esc(w.name)} <span class="muted small">· ${esc(w.preset.replace("_", " "))} · turn ${w.turn} of ${w.turn_limit}${w.status === "ENDED" ? " · <b>reign ended</b>" : ""}</span></div>
       ${w.my_kingdom_id
         ? `<div class="actions"><button class="gold" data-enter="${w.id}" data-k="${w.my_kingdom_id}">Return to your court</button></div>`
         : `<div class="throne-grid">${KINGDOMS.map((k) => {
@@ -153,10 +168,18 @@ async function joinWorld(worldId, name) {
 }
 
 function enterGame(worldId, kingdomId) {
+  const switching = S.kingdomId && S.kingdomId !== kingdomId;
   S.worldId = worldId; S.kingdomId = kingdomId;
+  if (switching) S.catalog = [];          // discounts differ per kingdom
   sessionStorage.setItem("sv_world", worldId); sessionStorage.setItem("sv_kingdom", kingdomId);
   show("gameView");
-  refresh();
+  refresh().then(() => {
+    // Once per kingdom: say what winning means before anything else.
+    if (!S.dash || S.dash.world.status === "ENDED") return;
+    let seen = null;
+    try { seen = localStorage.getItem(`sv_intro_${kingdomId}`); } catch { /* storage blocked: show it */ }
+    if (!seen) { showHowToWin(); try { localStorage.setItem(`sv_intro_${kingdomId}`, "1"); } catch { /* private mode */ } }
+  });
   connectWS();
 }
 
@@ -176,12 +199,20 @@ function scheduleRefresh() { clearTimeout(S.refreshTimer); S.refreshTimer = setT
 
 function renderAll() {
   const { world } = S.dash;
-  $("turnMedal").innerHTML = `<span>TURN</span><b>${world.turn}</b><span>${esc(world.name)}</span>`;
-  renderKingdom(S.dash.kingdom); renderCatalog(); drawMap(); renderDecrees();
+  const left = world.turn_limit - world.turn;
+  $("turnMedal").classList.toggle("final", world.status !== "ENDED" && left <= 3);
+  $("turnMedal").innerHTML = `<span>${world.status === "ENDED" ? "REIGN ENDED" : left <= 3 ? `${left} TURN${left === 1 ? "" : "S"} LEFT` : "TURN"}</span>
+    <b>${world.turn}<small> / ${world.turn_limit}</small></b>
+    <div class="reign"><i style="width:${Math.min(100, Math.round(100 * world.turn / world.turn_limit))}%"></i></div><span>${esc(world.name)}</span>`;
+  $("advanceBtn").disabled = world.status === "ENDED";
+  if (world.status === "ENDED") showCoronation();
+  renderKingdom(S.dash.kingdom); renderGoal(); renderCatalog(); drawMap(); renderDecrees();
+  renderMarket(); renderThreat(); renderArmyNote();
   renderTab(S.tab);
   if (S.negotiating) renderNegotiation();
   const pending = Object.values(S.dash.inbox).reduce((n, a) => n + a.length, 0);
   $("inboxBadge").textContent = pending; $("inboxBadge").classList.toggle("hidden", !pending);
+  renderGuide();                       // last: it highlights elements the renders above just rebuilt
 }
 
 function renderKingdom(k) {
@@ -211,13 +242,17 @@ function renderCatalog() {
     $("catalog").innerHTML = S.dash.buildings.map((b) => `<div class="tile parchment" data-detail="${b.building_type}" data-bid="${b.id}">
       ${ico(b.building_type)}<div class="nm">${esc(b.label)}</div><div class="lvl">Rank ${b.level}</div></div>`).join("")
       || '<p class="muted" style="grid-column:1/-1;text-align:center">No holdings yet.</p>';
-    return;
+    return refreshGuide();
   }
   $("catalog").innerHTML = S.catalog.filter((b) => S.cat === "all" || b.category === S.cat).map((b) =>
     `<div class="tile parchment ${S.selected === b.building_type ? "sel" : ""} ${canAfford(b.cost) ? "" : "poor"}"
      data-detail="${b.building_type}" title="${esc(b.function)}">${ico(b.building_type)}<div class="nm">${esc(b.label)}</div>
      <div class="c">${esc(costText(b.cost))}</div></div>`).join("");
+  refreshGuide();
 }
+
+/** Re-apply the guide's highlight after a partial re-render (only once the game is loaded). */
+function refreshGuide() { if (S.dash && !$("gameView").classList.contains("hidden")) renderGuide(); }
 
 function renderBuildings() { renderCatalog(); }
 
@@ -330,6 +365,7 @@ function renderTab(tab) {
   for (const t of ["diplomacy", "inbox", "council", "treasury", "letters", "chronicle", "leaders"]) $(`tab-${t}`).classList.toggle("hidden", t !== tab);
   ({ diplomacy: renderDiplomacy, inbox: renderInbox, council: renderCouncil, treasury: renderTreasury, letters: renderLetters,
      chronicle: renderChronicle, leaders: renderLeaders })[tab]();
+  refreshGuide();
 }
 
 function decisionHTML(d) {
@@ -372,6 +408,7 @@ function renderDecrees() {
 async function claimDecree(key) {
   try {
     const r = await api("POST", `/decrees/${key}/claim`, { kingdom_id: S.kingdomId });
+    guideMark("answer");
     toast(`<b>Decree fulfilled: ${esc(r.title)}</b><br>The crown receives ${Object.entries(r.reward).map(([k, v]) => `${fmt(v)} ${k}`).join(", ")}.`);
     await refresh();
   } catch (e) { fail(e); }
@@ -414,8 +451,214 @@ function onMapHover(ev) {
   $("hoverInfo").innerHTML = html; $("hoverInfo").classList.remove("hidden");
 }
 
+// ---------------------------------------------------------------- turn report ("Dawn of turn N")
+function snapshot() {
+  const k = S.dash.kingdom, row = S.dash.leaderboard.find((r) => r.kingdom_id === S.kingdomId);
+  return { turn: S.dash.world.turn, res: { ...k.resources }, pop: k.population, prestige: k.prestige, rank: row?.rank };
+}
+
+async function showTurnReport(before) {
+  const k = S.dash.kingdom, w = S.dash.world, now = snapshot();
+  let events = [];
+  try { events = (await api("GET", `/kingdoms/${S.kingdomId}/since?turn=${before.turn}`)).chronicle || []; } catch { /* report without news */ }
+  const delta = (a, b) => { const d = b - a; return `<b class="${d >= 0 ? "pos" : "neg"}">${d >= 0 ? "+" : ""}${fmt(d)}</b>`; };
+  const envoys = Object.values(S.dash.inbox).reduce((n, a) => n + a.length, 0);
+  const ready = (S.dash.decrees || []).filter((d) => d.complete).length;
+  const left = w.turn_limit - w.turn;
+  $("turnReport").innerHTML = `<div class="ornate report"><button class="close-x" data-close="turnReport">✕</button>
+    <div class="muted small" style="text-align:center">THE HERALD REPORTS</div>
+    <h2>Dawn of Turn ${w.turn}${left <= 3 ? ` <span class="warn">${left} turn${left === 1 ? "" : "s"} to the coronation</span>` : ""}</h2>
+    <div class="ledger">${RES.map((r) => `<div>${ico(r)}${fmt(now.res[r])}<span>${delta(before.res[r], now.res[r])}</span></div>`).join("")}
+      <div>${ico("people")}${fmt(now.pop)}<span>${delta(before.pop, now.pop)}</span></div>
+      <div>${ico("prestige")}${now.prestige}<span>${delta(before.prestige, now.prestige)}</span></div></div>
+    ${now.rank ? `<p style="text-align:center">You stand <b>#${now.rank}</b> of 4 in prestige${before.rank && before.rank !== now.rank ? ` (was #${before.rank})` : ""}.</p>` : ""}
+    <h3>In the realm</h3>
+    ${events.length ? `<div class="news">${events.slice(-5).reverse().map((e) => `<div class="chron parchment imp${e.importance}"><div class="t">${esc(e.title)}</div><div class="small">${esc(e.description)}</div></div>`).join("")}</div>`
+      : '<p class="muted" style="text-align:center">A quiet season across the realm.</p>'}
+    <div class="report-actions">
+      ${envoys ? `<button class="gold" data-goto="inbox">${envoys} envoy${envoys > 1 ? "s" : ""} await your answer</button>` : ""}
+      ${ready ? `<button class="gold" data-close="turnReport">${ready} decree${ready > 1 ? "s" : ""} ready to claim</button>` : ""}
+      <button data-close="turnReport">Continue your reign</button></div></div>`;
+  $("toasts").innerHTML = "";                 // the report replaces this turn's pile of toasts
+  $("turnReport").classList.remove("hidden");
+}
+
+// ---------------------------------------------------------------- the coronation (end of the reign)
+function showCoronation() {
+  const c = S.dash.world.coronation;
+  if (!c || S.coronationShown === S.worldId) return;
+  S.coronationShown = S.worldId;
+  const board = S.dash.leaderboard, me = board.find((r) => r.kingdom_id === S.kingdomId), won = me?.rank === 1;
+  $("turnReport").innerHTML = `<div class="ornate report coronation"><button class="close-x" data-close="turnReport">✕</button>
+    <div class="muted small" style="text-align:center">THE REIGN IS OVER</div>
+    <h2>${esc(c.title)}</h2>
+    <img class="med big" src="${medal(board[0].name)}" alt="">
+    <p class="verdict">${won ? "Long live the High Monarch: <b>you</b> have won the realm!" : `You finished <b>#${me?.rank}</b> of ${board.length}. ${esc(board[0].ruler_name)} wears the High Crown.`}</p>
+    <p class="small muted" style="text-align:center">${esc(c.description)}</p>
+    <div class="final">${board.map((r) => `<div class="${r.kingdom_id === S.kingdomId ? "me" : ""}"><span class="rank">${r.rank}</span>
+      <img src="${medal(r.name)}" alt=""><b>${esc(r.name)}</b><span>${r.prestige}</span></div>`).join("")}</div>
+    <div class="report-actions"><button class="gold" data-newreign>Begin a new reign</button><button data-close="turnReport">Stay and look around</button></div></div>`;
+  $("turnReport").classList.remove("hidden");
+}
+
+// ---------------------------------------------------------------- the goal: the race for the High Crown
+// What each prestige category is made of (server: prestige_service.compute) and how to raise it.
+const PRESTIGE_HELP = [
+  ["economic", "Economic", "the value of your stockpile (iron and stone count most), minus debts, plus interest earned", "Hoard, lend at interest, avoid debt"],
+  ["military", "Military", "soldiers, plus 60 for every battle won", "Barracks and recruits; win battles (defending counts)"],
+  ["diplomatic", "Diplomatic", "50 per alliance, 12 per trade, 20 per loan honoured, plus your average standing", "Trade often, make allies, keep your word"],
+  ["development", "Development", "20 per building rank, plus 40 per Academy rank", "Build and upgrade; Academies count double"],
+  ["welfare", "Welfare", "your people, Hospitals, Mansions and a full granary", "Houses, Taverns, Hospitals; never let food run out"],
+];
+
+function myRow() { return (S.dash.leaderboard || []).find((r) => r.kingdom_id === S.kingdomId); }
+
+function renderGoal() {
+  const board = S.dash.leaderboard || [], me = myRow(), w = S.dash.world;
+  if (!me || !board.length) { $("goalCard").innerHTML = ""; return; }
+  const left = Math.max(0, w.turn_limit - w.turn), top = board[0], next = board[me.rank - 2];
+  const line = w.status === "ENDED" ? (me.rank === 1 ? "You were crowned High Monarch." : `The reign is over: you finished #${me.rank}.`)
+    : me.rank === 1 ? `You lead ${esc(board[1]?.name || "")} by <b>${me.prestige - (board[1]?.prestige || 0)}</b> prestige.`
+    : `<b>${next.prestige - me.prestige}</b> prestige behind ${esc(next.name)} (#${next.rank})${me.rank > 2 ? `, ${top.prestige - me.prestige} behind the leader` : ""}.`;
+  // Your weakest category is usually the cheapest place to gain (diminishing returns at the top).
+  const weak = PRESTIGE_HELP.map((p) => [p, me.breakdown[p[0]] || 0]).sort((a, b) => a[1] - b[1])[0];
+  $("goalCard").innerHTML = `<div class="rank">Rank #${me.rank} of ${board.length} · ${me.prestige} prestige</div>
+    <div>${line}</div>
+    <div class="bar" title="Your prestige against the leader's"><i style="width:${Math.round(100 * me.prestige / Math.max(1, top.prestige))}%"></i></div>
+    ${w.status === "ENDED" ? "" : `<div class="muted small">${left} turn${left === 1 ? "" : "s"} left. Most prestige at turn ${w.turn_limit} wins the crown.
+      Weakest: <b>${weak[0][1]}</b> (${weak[1]}): ${esc(weak[0][3].toLowerCase())}.</div>`}`;
+}
+
+function showHowToWin() {
+  const w = S.dash.world, k = S.dash.kingdom;
+  $("infoOverlay").innerHTML = `<div class="ornate info"><button class="close-x" data-close="infoOverlay">✕</button>
+    <h2>How to Win the High Crown</h2>
+    <p class="lead">You rule ${esc(k.name)}, ${esc(k.title)}. The other three courts are run by the computer, each with its own temper.</p>
+    <p><b>The goal:</b> after <b>${w.turn_limit} turns</b>, the ruler with the most <b>prestige</b> is crowned High Monarch. You are on turn ${w.turn}.</p>
+    <b>Each turn</b>
+    <ol>
+      <li><b>Build</b> (left panel): pick a building, press Build, then click your land near your capital. Buildings produce every turn and can be upgraded.</li>
+      <li><b>Short of wood or stone?</b> Buy it at the <b>Royal Market</b> (left panel, needs a Market). Gold is for spending.</li>
+      <li><b>Deal with the courts</b> (Courts tab): trade, gift, lend, ally. NPCs show their reasons when they say yes or no.</li>
+      <li><b>Claim Royal Decrees</b> (bottom right of the map) for free resources.</li>
+      <li><b>End Turn</b> (red seal, or press E): everything produces, the rival courts move, and the herald reports.</li>
+    </ol>
+    <p><b class="neg">Beware Drakoria.</b> When it outguns you, Queen Varka demands tribute with a deadline. Pay it, or raise your defence (soldiers, Watchtowers, an ally with mutual defence) until she backs down. Ignore her and her army comes for your gold.</p>
+    <b>Prestige comes from five things</b> (each has diminishing returns, so balance wins):
+    <div class="cats">${PRESTIGE_HELP.map(([, label, what]) => `<div><b>${label}</b>: ${esc(what)}</div>`).join("")}</div>
+    <div class="go"><button class="gold" data-close="infoOverlay">Begin my reign</button></div></div>`;
+  $("infoOverlay").classList.remove("hidden");
+}
+
+// ---------------------------------------------------------------- Royal Market (gold buys materials)
+function renderMarket() {
+  const m = S.dash.market, box = $("market");
+  if (!m) { box.innerHTML = ""; return; }
+  if (box.contains(document.activeElement)) return;     // never rebuild the form under the ruler's cursor
+  if (!m.open) {
+    box.innerHTML = `<div class="market"><p class="muted small closed">Build a <b>Market</b> to buy wood, stone, iron and food with gold.</p></div>`;
+    return;
+  }
+  const sel = S.mkt.res, price = m.prices[sel], amt = Math.max(1, Math.min(S.mkt.amt || 1, m.units_left || 1));
+  const have = S.dash.kingdom.resources;
+  box.innerHTML = `<div class="market">
+    <div class="prices">${Object.entries(m.prices).map(([r, p]) => `<div title="${r}: buy ${p.buy} gold, sell ${p.sell} gold">${ico(r)}${p.buy}<span class="muted">/${p.sell}</span></div>`).join("")}</div>
+    <div class="row"><select id="mktRes">${Object.keys(m.prices).map((r) => `<option ${r === sel ? "selected" : ""}>${r}</option>`).join("")}</select>
+      <input id="mktAmt" type="number" min="1" max="${m.units_left}" value="${amt}"></div>
+    <div class="row" style="margin-top:6px">
+      <button class="gold" data-mkt="buy" ${m.units_left && have.gold >= price.buy * amt ? "" : "disabled"}>Buy for ${fmt(price.buy * amt)} gold</button>
+      <button data-mkt="sell" ${m.units_left && have[sel] >= amt ? "" : "disabled"}>Sell for ${fmt(price.sell * amt)}</button></div>
+    <div class="muted small" style="margin-top:4px">Gold per unit: buy / sell. ${m.units_left} of ${m.units_per_turn} units left this turn (upgrade the Market for more).</div></div>`;
+  $("mktRes").onchange = (e) => { S.mkt.res = e.target.value; e.target.blur(); renderMarket(); };
+  $("mktAmt").oninput = (e) => { S.mkt.amt = +e.target.value; };
+  $("mktAmt").onchange = (e) => { S.mkt.amt = +e.target.value; e.target.blur(); renderMarket(); };
+}
+
+async function marketTrade(side) {
+  const amount = Math.floor(+($("mktAmt")?.value || S.mkt.amt));
+  if (!(amount > 0)) return toast("Enter how many units to trade.", true);
+  try {
+    const r = await api("POST", "/market", { kingdom_id: S.kingdomId, resource: S.mkt.res, amount, side }, true);
+    toast(`${side === "buy" ? "Bought" : "Sold"} ${fmt(r.amount)} ${r.resource} for ${fmt(r.gold)} gold.`);
+    document.activeElement?.blur();
+    await refresh();
+  } catch (e) { fail(e); }
+}
+
+// ---------------------------------------------------------------- ultimatums (Drakoria's demands)
+function renderThreat() {
+  const list = S.dash.ultimatums || [], box = $("threat");
+  if (!list.length || S.dash.world.status === "ENDED") { box.classList.add("hidden"); return; }
+  const u = list[0];
+  const when = u.turns_left <= 0 ? "now" : `in ${u.turns_left} End Turn${u.turns_left === 1 ? "" : "s"}`;
+  box.innerHTML = `<h4>${ico("war")} Ultimatum from ${esc(u.from)}</h4>
+    <div class="small">${esc(u.ruler)} demands <b>${fmt(u.amount)} gold</b> by turn ${u.deadline_turn}. Her army marches ${when} if it is not paid.</div>
+    ${u.paid ? `<div class="small pos">Paid so far: ${fmt(u.paid)} of ${fmt(u.amount)}.</div>` : ""}
+    <div class="meter"><span>Your defence: <b class="${u.safe ? "pos" : "neg"}">${fmt(u.your_defense)}</b></span>
+      <span>Needed to deter: <b>${fmt(u.defense_needed)}</b></span><span>Their army: ~${fmt(u.their_army)}</span></div>
+    <div class="small ${u.safe ? "pos" : "muted"}">${u.safe ? "Your defences are strong enough: she will not dare attack." :
+      "Defence = (soldiers + allies' help) × watchtower bonus + 50 for your walls."}</div>
+    <div class="actions">
+      ${u.owed ? `<button class="gold" data-tribute="${u.from_id}" data-amt="${u.owed}" ${S.dash.kingdom.resources.gold >= u.owed ? "" : "disabled"}>Pay ${fmt(u.owed)} gold</button>` : ""}
+      <button data-defend>How to defend</button></div>`;
+  box.classList.remove("hidden");
+}
+
+async function payTribute(toId, amount) {
+  try {
+    await api("POST", "/gifts", { kingdom_id: S.kingdomId, target_id: toId, gold: amount }, true);
+    toast(`Tribute of ${fmt(amount)} gold sent. Drakoria's banners stay furled.`);
+    await refresh();
+  } catch (e) { fail(e); }
+}
+
+function renderArmyNote() {
+  const has = (t) => S.dash.buildings.some((b) => b.building_type === t);
+  const barracks = S.dash.buildings.filter((b) => b.building_type === "barracks").reduce((n, b) => n + b.level, 0);
+  $("recruitBtn").disabled = !barracks;
+  $("armyNote").innerHTML = barracks
+    ? `Up to ${barracks * 20} recruits a turn (10 gold, 2 iron, 1 food each).${has("watchtower") ? "" : " A Watchtower adds +25% to your defence."}`
+    : "Build Barracks to train soldiers. A Watchtower adds +25% defence even without them.";
+}
+
+// ---------------------------------------------------------------- first-steps guide
+const GUIDE = [
+  { key: "build", text: "Build something inside your borders: pick a Farm or Houses on the left, press Build, then click your land.",
+    target: () => document.querySelector('#catalog .tile[data-detail="farm"], #catalog .tile') },
+  { key: "turn", text: "End your turn (the red seal, or press E). Your fields produce and the other courts make their moves.",
+    target: () => $("advanceBtn") },
+  { key: "court", text: "Open negotiations with a neighbouring court: trade, gifts, passage, alliances.",
+    target: () => document.querySelector("[data-negotiate]") },
+  { key: "answer", text: "Answer an envoy (Envoys tab) or claim a Royal Decree reward on the map.",
+    target: () => document.querySelector('[data-claim], [data-tab="inbox"]') },
+];
+function guideState() {
+  try { return JSON.parse(localStorage.getItem(`sv_guide_${S.kingdomId}`) || "{}"); } catch { return {}; }
+}
+function guideMark(key) {
+  const g = guideState(); if (g[key]) return;
+  g[key] = true;
+  try { localStorage.setItem(`sv_guide_${S.kingdomId}`, JSON.stringify(g)); } catch { /* private mode */ }
+  renderGuide();
+}
+function renderGuide() {
+  for (const el of document.querySelectorAll(".pulse")) el.classList.remove("pulse");
+  const g = guideState();
+  if (!g.start) { g.start = { buildings: S.dash.buildings.length, turn: S.dash.world.turn }; try { localStorage.setItem(`sv_guide_${S.kingdomId}`, JSON.stringify(g)); } catch {} }
+  if (S.dash.buildings.length > g.start.buildings) g.build = true;
+  if (S.dash.world.turn > g.start.turn) g.turn = true;
+  const step = GUIDE.findIndex((s) => !g[s.key]);
+  const box = $("guide");
+  if (g.hidden || step < 0 || S.dash.world.status === "ENDED") { box.classList.add("hidden"); return; }
+  box.innerHTML = `${ico("decree")}<div><b>First steps · ${step + 1} of ${GUIDE.length}</b><br>${esc(GUIDE[step].text)}</div>
+    <button class="ghost" data-hideguide title="Hide the guide">✕</button>`;
+  box.classList.remove("hidden");
+  GUIDE[step].target()?.classList.add("pulse");
+}
+
 // ---------------------------------------------------------------- negotiation screen
 async function openNegotiation(kingdomId) {
+  guideMark("court");
   S.negotiating = { kingdomId, tiers: null, chosen: null };
   $("negotiation").classList.remove("hidden");
   renderNegotiation();
@@ -589,7 +832,10 @@ function renderLeaders() {
       <div class="muted small">${esc(r.ruler_name)}</div>
       ${r.crowns.length ? `<div class="crowns">${ico("prestige", "")} ${r.crowns.map(esc).join(", ")}</div>`.replace('class=""', 'style="width:16px;vertical-align:-3px"') : ""}</div>
     <div class="pts">${r.prestige}</div></div>
-    <div class="muted small" style="margin-top:6px">${Object.entries(r.breakdown).map(([k, v]) => `${k} ${v}`).join(" · ")}${r.penalty ? ` · <span class="neg">betrayal −${r.penalty}</span>` : ""}</div></div>`).join("");
+    <div class="muted small" style="margin-top:6px">${Object.entries(r.breakdown).map(([k, v]) => `${k} ${v}`).join(" · ")}${r.penalty ? ` · <span class="neg">betrayal −${r.penalty}</span>` : ""}</div></div>`).join("")
+    + `<div class="item prestige-help"><b>How prestige is counted</b> (each category tops out at 200, and the first points come cheapest)
+      <ul>${PRESTIGE_HELP.map(([, label, what, how]) => `<li><b>${label}</b>: ${esc(what)}. <span class="muted">${esc(how)}.</span></li>`).join("")}</ul>
+      <span class="muted">Breaking an alliance or defaulting on a loan costs prestige outright. At turn ${S.dash.world.turn_limit} the highest total is crowned.</span></div>`;
 }
 
 // ---------------------------------------------------------------- dialogs & actions
@@ -692,7 +938,7 @@ async function doInbox(kind, id) {
     "ally-accept": ["POST", `/alliances/${id}/respond`, { accept: true }], "ally-reject": ["POST", `/alliances/${id}/respond`, { accept: false }],
     "mark-read": ["GET", `/kingdoms/${S.kingdomId}/notifications?mark_read=true`],
   };
-  try { await api(...routes[kind]); await refresh(); } catch (e) { fail(e); }
+  try { await api(...routes[kind]); if (kind !== "mark-read") guideMark("answer"); await refresh(); } catch (e) { fail(e); }
 }
 
 // ---------------------------------------------------------------- live updates
@@ -715,6 +961,7 @@ function connectWS() {
 $("loginBtn").onclick = () => auth("login");
 $("registerBtn").onclick = () => auth("register");
 $("guestBtn").onclick = guest;
+$("quickBtn").onclick = quickStart;
 $("authUser").onkeydown = (e) => { if (e.key === "Enter") $("authPass").focus(); };
 $("authPass").onkeydown = (e) => { if (e.key === "Enter") auth("login"); };
 $("pwToggle").onclick = () => {
@@ -722,20 +969,30 @@ $("pwToggle").onclick = () => {
   p.type = show ? "text" : "password"; $("pwToggle").textContent = show ? "Hide" : "Show"; p.focus();
 };
 $("logoutBtn").onclick = logout;
+$("helpBtn").onclick = () => S.dash && showHowToWin();
 $("createWorldBtn").onclick = createWorld;
-$("advanceBtn").onclick = async () => {
+async function endTurn() {
+  if ($("advanceBtn").disabled || S.endingTurn) return;
+  S.endingTurn = true; $("advanceBtn").disabled = true;
+  const before = snapshot();
   try {
     const r = await api("POST", `/worlds/${S.worldId}/turn`);
-    if (!r.advanced) toast(`You are ready. Waiting for: ${r.waiting_for.map(esc).join(", ")}`);
-    await refresh();                         // when it advances, the TURN_REPORT notification toasts
+    if (!r.advanced) { toast(`You are ready. Waiting for: ${r.waiting_for.map(esc).join(", ")}`); await refresh(); return; }
+    await refresh();
+    if (!r.ended) await showTurnReport(before);
   } catch (e) { fail(e); }
-};
+  finally { S.endingTurn = false; $("advanceBtn").disabled = S.dash?.world.status === "ENDED"; }
+}
+$("advanceBtn").onclick = endTurn;
 $("map").onclick = onMapClick;
 $("map").onmousemove = onMapHover;
 $("map").onmouseleave = () => $("hoverInfo").classList.add("hidden");
 document.addEventListener("keydown", (e) => {
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "");
+  const overlayOpen = ["infoOverlay", "turnReport", "buildDetail", "negotiation"].some((id) => !$(id).classList.contains("hidden")) || $("actionDialog").open;
+  if ((e.key === "e" || e.key === "E") && !typing && !overlayOpen && !$("gameView").classList.contains("hidden")) return endTurn();
   if (e.key !== "Escape") return;
-  for (const id of ["buildDetail", "negotiation"]) if (!$(id).classList.contains("hidden")) return closeOverlay(id);
+  for (const id of ["infoOverlay", "turnReport", "buildDetail", "negotiation"]) if (!$(id).classList.contains("hidden")) return closeOverlay(id);
   if (S.selected) { S.selected = null; renderCatalog(); drawMap(); }
 });
 document.addEventListener("click", (e) => {
@@ -744,6 +1001,12 @@ document.addEventListener("click", (e) => {
   if (!el || el.disabled) return;
   const d = el.dataset;
   if (d.close) closeOverlay(d.close);
+  else if (d.goto) { closeOverlay("turnReport"); renderTab(d.goto); }
+  else if (d.mkt) marketTrade(d.mkt);
+  else if (d.tribute) payTribute(d.tribute, +d.amt);
+  else if (d.defend != null) toast("<b>Raising your defence</b><br>Recruit soldiers (needs Barracks), build or upgrade a Watchtower (+25% per rank), or ally with a court and tick <i>mutual defence</i>: a quarter of their army stands with you.", false, 11000);
+  else if (d.hideguide != null) { const g = guideState(); g.hidden = true; try { localStorage.setItem(`sv_guide_${S.kingdomId}`, JSON.stringify(g)); } catch {} renderGuide(); }
+  else if (d.newreign != null) { closeOverlay("turnReport"); S.worldId = S.kingdomId = null; sessionStorage.removeItem("sv_world"); sessionStorage.removeItem("sv_kingdom"); if (S.ws) S.ws.close(); loadWorlds(false); }
   else if (d.detail) openBuildDetail(d.detail, d.bid);
   else if (d.pane) { S.pane = d.pane; renderCatalog(); }
   else if (d.cat) { S.cat = d.cat; renderCatalog(); }
@@ -766,4 +1029,4 @@ $("recruitBtn").onclick = async () => {
 
 if (!S.token) show("authView");
 else if (S.worldId && S.kingdomId) enterGame(S.worldId, S.kingdomId);
-else loadWorlds().catch(() => logout());
+else loadWorlds(true).catch(() => logout());

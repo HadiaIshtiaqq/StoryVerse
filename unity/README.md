@@ -18,6 +18,12 @@ joins that world and takes a free throne. Start one headset first: it creates th
 **Answering proposals:** offers other rulers send you (trades, loans, alliances, peace) appear one at a time on the
 **Envoy's Scroll** to the right of the map. Palm-hold **Accept** or **Refuse**. The **Hall of Crowns** (back left) shows
 prestige ranks and crown holders.
+**Royal Market** (front-left corner, needs a Market building): pinch a crate to choose the goods, then palm-hold
+**Buy** or **Sell** to trade 50 units with the crown's merchants. The slate shows prices (gold per unit, buy/sell) and
+how many units you can still trade this turn.
+**Ultimatums** (front-right corner): when Drakoria outguns you, a crimson lectern rises with its demand, deadline and
+the defence you'd need to make it back down, and the Herald reads it aloud. Palm-hold the **Tribute** seal to pay, or
+raise your defence (soldiers, Watchtowers, a mutual-defence ally). The lectern stays hidden while nobody threatens you.
 **End Turn** is the hourglass on the desk (palm-hold). In a shared world it marks you ready, and the turn advances when
 every human is ready.
 

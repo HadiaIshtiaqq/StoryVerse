@@ -38,7 +38,8 @@ def test_houses_grow_the_population(four):
 def test_granary_halves_famine_losses(four):
     world, r = four
     a, d = r["Aurelia"], r["Drakoria"]
-    a.post("/buildings", {"kingdom_id": a.kid, "building_type": "granary", "x": 0.30, "z": 0.36})
+    gr = a.post("/buildings", {"kingdom_id": a.kid, "building_type": "granary", "x": 0.20, "z": 0.32})
+    assert gr.status_code == 200, gr.text
     for k in (a, d):
         _set(k.kid, food=0, population=400)
     advance(a, world["id"])

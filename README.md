@@ -58,6 +58,14 @@ The browser simulator and the VR scene share them. Screenshots are in [docs/scre
 - **VR:** crest banners on every castle, the target ruler's medallion on the Diplomatic Desk, the sender's portrait on the
   Envoy's Scroll, the leading ruler above the Hall of Crowns, and icons on the building cards.
 
+### Game flow: one reign, start to finish
+1. **Enter:** *Play now as a guest* (one click), or Register / Log in. Returning rulers go straight into their court.
+2. **Quick start:** one button founds a Solo Court (you and three NPC rulers); pick your throne.
+3. **First steps:** a four-step guide pulses the next action until you know the loop: build, end turn, negotiate, then answer an envoy or claim a decree.
+4. **Each turn:** press **E** or the wax seal. *Dawn of Turn N* shows every resource change, your prestige rank, the realm's news, and who is waiting for you.
+5. **The arc:** each reign lasts a fixed number of turns (Solo Court 20, Standard 30), shown as *Turn 5 / 20*, with a warning in the last 3 turns.
+6. **The end:** on the last turn the most prestigious ruler is **crowned High Monarch**, recorded in the chronicle, with final standings and *Begin a new reign*.
+
 ### Court features (from the reference pictures, all original)
 | Feature | Server | Simulator | VR |
 |---|---|---|---|
@@ -65,6 +73,9 @@ The browser simulator and the VR scene share them. Screenshots are in [docs/scre
 | **Royal Decrees**: objectives with progress and rewards, claimed once, written to the ledger and chronicle | `GET /kingdoms/{id}/decrees`, `POST /decrees/{key}/claim` | Panel over the map | Decree scroll with a claim seal |
 | **Military passage**: open your roads (Peaceful+), +15 gold/turn tolls for both, war closes them | `POST /passages`, `POST /passages/{id}/close` | Grant/Terminate pennant, roads on the map | Passage seal, dotted gold roads |
 | **Gift chests of gold + iron**, preview equals result | `/gifts/tiers` returns `iron` | Two-resource chests | Chest labels show both |
+| **Royal Market**: buy food, wood, stone and iron with gold at fixed prices (2× value), or sell them back (½), up to 200 units a turn per Market level, so gold always has a use | `GET/POST /market` | Market panel (left) | Market stall (front-left): pinch a crate, palm-hold Buy/Sell |
+| **Ultimatums**: from turn 4 Drakoria demands tribute from a human ruler it outguns. Pay by the deadline, raise defence until it backs down, or face its army. The warning projects Drakoria's army to the deadline | dashboard `ultimatums` (amount, deadline, your defence, defence needed, `safe`) | Banner on the map with Pay / How to defend | Crimson lectern (front-right) that rises with the demand; Herald reads it; palm-hold Tribute seal |
+| **The goal on screen**: rank, gap to the next ruler, turns left, weakest prestige category; "How to win" card; how prestige is counted | from `leaderboard` | Goal card, How to win, Crowns tab | |
 | **Settlement buildings**: Houses (+3 people/turn), Tavern, Mansions (welfare prestige), Blacksmith, Granary (halves famine) | catalog with `category` + `lore` | Category bar, lore, Available / Your holdings with upgrade | Modelled with chimney smoke |
 | **Negotiation screen**: treaty thresholds on the scale, both rulers' diplomatic web, rank and crown badges | from relations + treaty web | ✓ | Desk seals with lock reasons |
 | **Council chamber**: stained-glass windows, candlelight, stone walls | | Windows and candle glow | Flickering candles on the table; stone chamber with rose window in the PC preview (passthrough room on Quest) |

@@ -12,9 +12,9 @@ from sqlalchemy.orm import Session
 
 from app.errors import GameError
 from app.game.rules import BUILDINGS, KINGDOM_BY_NAME, MAX_BUILDING_LEVEL, building_cost, band
-from app.models import Battle, Kingdom, Loan, Message, TradeOffer, World
+from app.models import Battle, Kingdom, Loan, TradeOffer, World
 from app.services import (diplomacy_service, economy_service, kingdom_service, military_service, npc_brain, queries,
-                          standing_service)
+                          standing_service, ultimatum_service)
 
 BUILD_ORDERS = {
     "merchant": ["market", "farm", "gold_mine", "bank", "academy", "hospital", "lumber_mill"],
@@ -88,7 +88,7 @@ def _build(db: Session, world: World, npc: Kingdom, style: str, rng: random.Rand
 
 def _recruit(db: Session, npc: Kingdom) -> None:
     if npc.gold > 1500 and queries.has_building(db, npc.id, "barracks"):
-        military_service.recruit_for(db, npc, 10)
+        military_service.recruit_for(db, npc, ultimatum_service.WARLORD_RECRUITS_PER_TURN)
 
 
 # --- diplomatic moves --------------------------------------------------------------------------
@@ -131,7 +131,6 @@ def _merchant(db: Session, world: World, npc: Kingdom) -> None:
 
 
 WARLORD_COOLDOWN = 3
-GRACE_FOR_NEW_RULERS = 4
 
 
 def _warlord(db: Session, world: World, npc: Kingdom) -> None:
@@ -145,6 +144,9 @@ def _warlord(db: Session, world: World, npc: Kingdom) -> None:
             return
     last = db.execute(select(Battle).where(Battle.attacker_id == npc.id).order_by(Battle.turn.desc())).scalars().first()
     ready = world.turn > world.beginner_protection_turns and (last is None or world.turn - last.turn >= WARLORD_COOLDOWN)
+    # Ultimatums to human rulers come first: a demand, a deadline, and steel if it is ignored.
+    if ultimatum_service.npc_turn(db, world, npc):
+        return
     if ready:
         rng = random.Random(f"{world.seed}:{world.turn}:{npc.id}:war")
         allies = set(queries.ally_ids(db, npc.id))
@@ -152,26 +154,25 @@ def _warlord(db: Session, world: World, npc: Kingdom) -> None:
         weak_allies = [db.get(Kingdom, a) for a in allies]
         weak_allies = [k for k in weak_allies if npc.soldiers > 2 * max(k.soldiers, 1)]
         if world.turn >= 8 and weak_allies and rng.random() < 0.35:
-            if _attempt(db, military_service.battle_for, db, npc, min(weak_allies, key=lambda k: k.soldiers), npc.soldiers // 2):
+            target = min(weak_allies, key=lambda k: k.soldiers)
+            if _strike(db, npc, target):
                 return
+        # Raid NPC rivals it dislikes, and any human it is already at war with (humans get an ultimatum first).
         targets = [k for k in _others(db, npc) if k.id not in allies
-                   and standing_service.score(db, world.id, npc.id, k.id) < 0 and npc.soldiers >= 1.5 * max(k.soldiers, 1)]
-        if targets:
-            target = min(targets, key=lambda k: k.soldiers)
-            if not target.is_npc and world.turn <= GRACE_FOR_NEW_RULERS:
-                _threaten(db, npc, target)
-            elif _attempt(db, military_service.battle_for, db, npc, target, npc.soldiers // 2):
+                   and ((k.is_npc and standing_service.score(db, world.id, npc.id, k.id) < 0)
+                        or (not k.is_npc and queries.active_war(db, npc.id, k.id)))]
+        for target in sorted(targets, key=lambda k: military_service.army_needed(db, npc, k)):
+            if _strike(db, npc, target):
                 return
     _offer_to_human(db, npc, "iron", 60, "food", 120)
 
 
-def _threaten(db: Session, npc: Kingdom, target: Kingdom) -> None:
-    already = db.execute(select(Message).where(Message.sender_kingdom_id == npc.id,
-                                               Message.recipient_kingdom_id == target.id)).scalars().first()
-    if not already:
-        _attempt(db, diplomacy_service.send_message_for, db, npc, target.id, "A warning from Cinderhold",
-                 f"{target.name} grows fat while Drakoria's legions sharpen their blades. Send tribute, or our "
-                 f"banners will darken your fields.\n\n— {npc.ruler_name}", "cold", False)
+def _strike(db: Session, npc: Kingdom, target: Kingdom) -> bool:
+    """Attack only with an army big enough to expect a win, and never strip the homeland bare."""
+    need = military_service.army_needed(db, npc, target, ultimatum_service.MARGIN)
+    if need > int(npc.soldiers * ultimatum_service.COMMIT_SHARE):
+        return False
+    return _attempt(db, military_service.battle_for, db, npc, target, need) is not None
 
 
 def _steward(db: Session, world: World, npc: Kingdom) -> None:

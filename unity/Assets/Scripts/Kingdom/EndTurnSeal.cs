@@ -19,7 +19,11 @@ namespace Storyverse.Kingdom
             confirm.OnConfirmed.AddListener(EndTurn);
             KingdomManager.Instance.OnTurnReady += ShowWaiting;
             KingdomManager.Instance.OnTurn += ShowTurn;
+            KingdomManager.Instance.OnDashboard += ShowReign;
         }
+
+        // Keep "Turn 5 / 20" current from every dashboard refresh, not only when a turn event arrives.
+        void ShowReign(Data.Dashboard d) { if (d?.World != null && !_busy) ShowTurn(d.World.Turn); }
 
         void OnDisable()
         {
@@ -27,6 +31,7 @@ namespace Storyverse.Kingdom
             if (!KingdomManager.Instance) return;
             KingdomManager.Instance.OnTurnReady -= ShowWaiting;
             KingdomManager.Instance.OnTurn -= ShowTurn;
+            KingdomManager.Instance.OnDashboard -= ShowReign;
         }
 
         async void EndTurn()
@@ -50,7 +55,14 @@ namespace Storyverse.Kingdom
 
         void ShowTurn(int turn)
         {
-            if (status) status.text = $"Turn {turn}";
+            if (!status) return;
+            var w = KingdomManager.Instance.Dashboard?.World;
+            if (w != null && w.Status == "ENDED") { status.text = "The reign\nhas ended"; return; }
+            var limit = w != null && w.TurnLimit > 0 ? w.TurnLimit : 0;
+            var left = limit - turn;
+            status.text = limit == 0 ? $"Turn {turn}"
+                : left <= 3 ? $"Turn {turn} / {limit}\n<color=#ef8a8a>{left} to the coronation</color>"
+                : $"Turn {turn} / {limit}";
         }
     }
 }

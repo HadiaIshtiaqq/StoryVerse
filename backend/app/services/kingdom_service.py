@@ -88,8 +88,11 @@ def join_world(db: Session, player: Player, world_id: str, kingdom_name: str | N
     if seat.owner_id:
         raise conflict(f"{seat.name} was just claimed by another player")
     seat.owner_id, seat.is_npc = player.id, False
-    story_service.record(db, world, "RULER_CROWNED", f"{player.username} Takes the Throne of {seat.name}",
-                         f"The court of {seat.name} kneels as {player.username} accepts the crown from "
+    # Guest (guest_...) and headset device accounts (ruler_...) have machine names: never put those in the chronicle.
+    anonymous = player.username.startswith(("guest_", "ruler_"))
+    who = "a new sovereign" if anonymous else player.username
+    story_service.record(db, world, "RULER_CROWNED", f"{'A New Sovereign' if anonymous else player.username} Takes the Throne of {seat.name}",
+                         f"The court of {seat.name} kneels as {who} accepts the crown from "
                          f"{seat.ruler_name}'s regents. {seat.title} has a living ruler once more.",
                          actors=[seat.name], importance=2)
     for other in seats:
